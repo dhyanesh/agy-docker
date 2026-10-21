@@ -54,6 +54,26 @@ if [[ ! -d "${GEMINI_CONFIG_DIR}" ]]; then
     exit 1
 fi
 
+# Ensure /workspace is in trustedWorkspaces so interactive sessions don't block on trust dialogs
+SETTINGS_FILE="${GEMINI_CONFIG_DIR}/antigravity-cli/settings.json"
+if [[ -f "${SETTINGS_FILE}" ]]; then
+    python3 -c "
+import json, sys
+try:
+    path = sys.argv[1]
+    with open(path, 'r') as f:
+        data = json.load(f)
+    if 'trustedWorkspaces' not in data:
+        data['trustedWorkspaces'] = []
+    if '/workspace' not in data['trustedWorkspaces']:
+        data['trustedWorkspaces'].append('/workspace')
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+except Exception:
+    pass
+" "${SETTINGS_FILE}" 2>/dev/null || true
+fi
+
 # Determine terminal allocation flags
 DOCKER_TTY_FLAGS=()
 if [[ -t 0 && -t 1 ]]; then
