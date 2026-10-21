@@ -28,14 +28,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG HOST_UID=1000
 ARG HOST_GID=1000
 
-# Create devuser with host UID/GID and grant passwordless sudo within the container
-RUN if getent group ${HOST_GID} ; then \
-        group_name=$(getent group ${HOST_GID} | cut -d: -f1); \
-    else \
-        group_name=devuser; \
-        groupadd -g ${HOST_GID} ${group_name}; \
+# Ubuntu 24.04 includes a default 'ubuntu' user with UID/GID 1000.
+# If a user with HOST_UID already exists, remove it first so devuser can claim it.
+RUN if getent passwd "${HOST_UID}" >/dev/null 2>&1; then \
+        existing_user=$(getent passwd "${HOST_UID}" | cut -d: -f1); \
+        userdel -f "${existing_user}" 2>/dev/null || true; \
     fi && \
-    useradd -u ${HOST_UID} -g ${group_name} -m -s /bin/bash devuser && \
+    if ! getent group "${HOST_GID}" >/dev/null 2>&1; then \
+        groupadd -g "${HOST_GID}" devuser; \
+    fi && \
+    group_name=$(getent group "${HOST_GID}" | cut -d: -f1) && \
+    useradd -u "${HOST_UID}" -g "${group_name}" -m -s /bin/bash devuser && \
     echo "devuser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/devuser && \
     chmod 0440 /etc/sudoers.d/devuser
 
