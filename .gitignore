@@ -1,0 +1,17 @@
+# Virtual disk images
+*.img
+*.iso
+*.raw
+
+# Log files
+*.log
+cli.log
+
+# Operating system / Editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/

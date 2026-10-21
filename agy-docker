@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# agy-docker: Run agy autonomously inside an isolated Docker container for the current project
+#
+# Usage:
+#   agy-docker "your prompt"
+#   agy-docker -p "run tests and fix any failing cases"
+#   agy-docker --mode auto -p "refactor database client"
+#   agy-docker -i "interactive prompt"
+#
+# Environment variables:
+#   AGY_IMAGE           Custom docker image (default: agy-base:latest)
+#   AGY_WORKSPACE       Directory to mount as workspace (default: current directory)
+#   AGY_BIN             Path to host agy binary (default: auto-detected via PATH or ~/.local/bin/agy)
+#   GEMINI_DIR          Path to host .gemini directory (default: ~/.gemini)
+#   EXTRA_DOCKER_ARGS   Additional arguments to pass to docker run (e.g. env vars, port mappings)
+
+set -euo pipefail
+
+if [[ "${1:-}" == "--help-wrapper" ]]; then
+    cat <<EOF
+agy-docker: Autonomous AGY runner inside Docker
+
+Usage:
+  agy-docker [AGY_FLAGS...] [PROMPT]
+
+Environment variables:
+  AGY_WORKSPACE       Directory mounted as /workspace (default: current directory)
+  AGY_IMAGE           Docker image to use (default: agy-base:latest)
+  AGY_BIN             Host agy binary path (default: auto-detected)
+  GEMINI_DIR          Host .gemini directory (default: ~/.gemini)
+  EXTRA_DOCKER_ARGS   Extra flags passed to 'docker run'
+
+All arguments are passed directly to 'agy --dangerously-skip-permissions'.
+To see agy's own options, run: agy-docker --help
+EOF
+    exit 0
+fi
+
+IMAGE="${AGY_IMAGE:-agy-base:latest}"
+WORKSPACE_DIR="${AGY_WORKSPACE:-$(pwd)}"
+PROJECT_NAME="$(basename "${WORKSPACE_DIR}")"
+AGY_HOST_BIN="${AGY_BIN:-$(which agy 2>/dev/null || echo "${HOME}/.local/bin/agy")}"
+GEMINI_CONFIG_DIR="${GEMINI_DIR:-${HOME}/.gemini}"
+
+if [[ ! -x "${AGY_HOST_BIN}" ]]; then
+    echo "❌ Error: agy binary not found at '${AGY_HOST_BIN}'" >&2
+    echo "   Ensure 'agy' is in your PATH or set AGY_BIN=/path/to/agy" >&2
+    exit 1
+fi
+
+if [[ ! -d "${GEMINI_CONFIG_DIR}" ]]; then
+    echo "❌ Error: Gemini config directory not found at '${GEMINI_CONFIG_DIR}'" >&2
+    echo "   Set GEMINI_DIR=/path/to/.gemini or run agy on the host first to initialize." >&2
+    exit 1
+fi
+
+# Determine terminal allocation flags
+DOCKER_TTY_FLAGS=()
+if [[ -t 0 && -t 1 ]]; then
+    DOCKER_TTY_FLAGS=(-it)
+elif [[ -t 0 ]]; then
+    DOCKER_TTY_FLAGS=(-i)
+fi
+
+CONTAINER_NAME="agy-${PROJECT_NAME//[^a-zA-Z0-9_-]/-}-$$"
+
+# Mount configuration
+DOCKER_MOUNTS=(
+    # Workspace mount
+    -v "${WORKSPACE_DIR}:/workspace"
+    # Mount agy binary from host so updates to agy immediately reflect
+    -v "${AGY_HOST_BIN}:/usr/local/bin/agy:ro"
+    # Auth & settings mount (minor race approach: read-write for seamless automatic token refresh)
+    -v "${GEMINI_CONFIG_DIR}:/home/devuser/.gemini"
+)
+
+# Optional host gitconfig
+if [[ -f "${HOME}/.gitconfig" ]]; then
+    DOCKER_MOUNTS+=(-v "${HOME}/.gitconfig:/home/devuser/.gitconfig:ro")
+fi
+
+# Optional SSH agent forwarding for private git operations
+if [[ -n "${SSH_AUTH_SOCK:-}" && -S "${SSH_AUTH_SOCK:-}" ]]; then
+    DOCKER_MOUNTS+=(-v "${SSH_AUTH_SOCK}:/ssh-agent" -e SSH_AUTH_SOCK=/ssh-agent)
+fi
+
+# Parse optional EXTRA_DOCKER_ARGS
+EXTRA_ARGS=()
+if [[ -n "${EXTRA_DOCKER_ARGS:-}" ]]; then
+    read -r -a EXTRA_ARGS <<< "${EXTRA_DOCKER_ARGS}"
+fi
+
+echo "🐳 Running AGY in container [${CONTAINER_NAME}]"
+echo "   📁 Project:   ${WORKSPACE_DIR}"
+echo "   🛡️ Autonomy:  --dangerously-skip-permissions active"
+echo "───────────────────────────────────────────────────────"
+
+exec docker run --rm \
+    "${DOCKER_TTY_FLAGS[@]}" \
+    --name "${CONTAINER_NAME}" \
+    -w /workspace \
+    "${DOCKER_MOUNTS[@]}" \
+    "${EXTRA_ARGS[@]}" \
+    "${IMAGE}" \
+    agy --dangerously-skip-permissions "$@"
