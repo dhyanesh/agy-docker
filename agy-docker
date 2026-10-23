@@ -42,6 +42,29 @@ PROJECT_NAME="$(basename "${WORKSPACE_DIR}")"
 AGY_HOST_BIN="${AGY_BIN:-$(which agy 2>/dev/null || echo "${HOME}/.local/bin/agy")}"
 GEMINI_CONFIG_DIR="${GEMINI_DIR:-${HOME}/.gemini}"
 
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "❌ Error: 'docker' CLI not found in PATH." >&2
+    exit 1
+fi
+
+# Pre-flight check: Ensure docker daemon is responsive within 4 seconds
+if ! timeout 4 docker info >/dev/null 2>&1; then
+    echo "❌ Error: Docker daemon is not responding or not running." >&2
+    echo "   1. Start the Docker service:" >&2
+    echo "      sudo systemctl enable --now docker" >&2
+    echo "   2. Ensure Docker CLI context is set to default:" >&2
+    echo "      docker context use default" >&2
+    exit 1
+fi
+
+if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
+    echo "❌ Error: Docker image '${IMAGE}' not found locally." >&2
+    echo "   Build it first by running: ${SCRIPT_DIR}/build.sh" >&2
+    exit 1
+fi
+
 if [[ ! -x "${AGY_HOST_BIN}" ]]; then
     echo "❌ Error: agy binary not found at '${AGY_HOST_BIN}'" >&2
     echo "   Ensure 'agy' is in your PATH or set AGY_BIN=/path/to/agy" >&2

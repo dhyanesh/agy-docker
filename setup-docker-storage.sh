@@ -152,8 +152,15 @@ else
 fi
 
 # 6. Start Docker service
-echo "6️⃣  Starting Docker service..."
+echo "6️⃣  Enabling and starting Docker service..."
+systemctl enable docker.socket 2>/dev/null || true
+systemctl enable docker.service 2>/dev/null || true
 systemctl start docker.service
+
+# Ensure CLI context points to default native docker socket
+if command -v docker >/dev/null 2>&1; then
+    docker context use default 2>/dev/null || true
+fi
 
 # 7. Verification
 echo "7️⃣  Verifying Docker storage..."
