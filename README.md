@@ -27,26 +27,35 @@ sudo ./setup-docker-storage.sh /mnt/your-storage-drive 500
 
 > **Note**: This creates a sparse virtual ext4 disk image (`docker-storage.img`). It allocates almost **0 bytes initially** and dynamically grows only as Docker images and containers are downloaded.
 
-### 2. Build the Docker Image
+### 2. Installation
 
-Build the base development image (`agy-base:latest`):
+#### Option A: Install Debian Package (Recommended for Ubuntu/Debian)
 
-```bash
-./build.sh
-```
-
-To build under a custom image tag:
-```bash
-AGY_IMAGE=my-custom-agy:latest ./build.sh
-```
-
-### 3. Install the Runner CLI
-
-Symlink or copy `agy-docker` to a directory in your `$PATH` (e.g., `~/.local/bin`):
+Download the `.deb` release package from GitHub Releases or build it locally:
 
 ```bash
-ln -sf "$(pwd)/agy-docker" ~/.local/bin/agy-docker
+# Install package
+sudo apt install ./agy-docker_1.0.0_all.deb
+# Or via dpkg:
+sudo dpkg -i agy-docker_1.0.0_all.deb
+
+# Build the base container image
+agy-docker --build
 ```
+
+#### Option B: Standalone / From Source
+
+1. Build the base development image (`agy-base:latest`):
+   ```bash
+   ./build.sh
+   # Or:
+   ./agy-docker --build
+   ```
+
+2. Symlink or copy `agy-docker` to your `$PATH` (e.g. `~/.local/bin`):
+   ```bash
+   ln -sf "$(pwd)/agy-docker" ~/.local/bin/agy-docker
+   ```
 
 ---
 
@@ -100,5 +109,6 @@ AGY_WORKSPACE=/path/to/project agy-docker -p "analyze code coverage"
 ├── build.sh                    # Helper script to build the image matching host UID/GID
 ├── agy-docker                  # CLI wrapper to launch autonomous containers
 ├── setup-docker-storage.sh     # Utility to mount sparse loopback volume on secondary drive
+├── package-deb.sh              # Debian (.deb) package and tarball builder
 └── README.md                   # Documentation
 ```

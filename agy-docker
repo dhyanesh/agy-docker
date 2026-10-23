@@ -22,6 +22,7 @@ agy-docker: Autonomous AGY runner inside Docker
 
 Usage:
   agy-docker [AGY_FLAGS...] [PROMPT]
+  agy-docker --build                Build or rebuild the base Docker image
 
 Environment variables:
   AGY_WORKSPACE       Directory mounted as /workspace (default: current directory)
@@ -43,6 +44,25 @@ AGY_HOST_BIN="${AGY_BIN:-$(which agy 2>/dev/null || echo "${HOME}/.local/bin/agy
 GEMINI_CONFIG_DIR="${GEMINI_DIR:-${HOME}/.gemini}"
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+DOCKERFILE_DIR=""
+if [[ -f "${SCRIPT_DIR}/Dockerfile" ]]; then
+    DOCKERFILE_DIR="${SCRIPT_DIR}"
+elif [[ -f "/usr/share/agy-docker/Dockerfile" ]]; then
+    DOCKERFILE_DIR="/usr/share/agy-docker"
+fi
+
+if [[ "${1:-}" == "--build" || "${1:-}" == "build" ]]; then
+    if [[ -z "${DOCKERFILE_DIR}" ]]; then
+        echo "❌ Error: Dockerfile not found in '${SCRIPT_DIR}' or '/usr/share/agy-docker'." >&2
+        exit 1
+    fi
+    echo "🔨 Building Docker image: ${IMAGE}..."
+    exec docker build \
+        --build-arg HOST_UID="$(id -u)" \
+        --build-arg HOST_GID="$(id -g)" \
+        -t "${IMAGE}" \
+        "${DOCKERFILE_DIR}"
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
     echo "❌ Error: 'docker' CLI not found in PATH." >&2
@@ -61,7 +81,7 @@ fi
 
 if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
     echo "❌ Error: Docker image '${IMAGE}' not found locally." >&2
-    echo "   Build it first by running: ${SCRIPT_DIR}/build.sh" >&2
+    echo "   Build it now by running: agy-docker --build" >&2
     exit 1
 fi
 
