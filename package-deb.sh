@@ -72,6 +72,11 @@ chmod 644 "${BUILD_DIR}/usr/share/${PKG_NAME}/Dockerfile"
 chmod 755 "${BUILD_DIR}/usr/share/${PKG_NAME}/build.sh"
 chmod 755 "${BUILD_DIR}/usr/share/${PKG_NAME}/setup-docker-storage.sh"
 
+if [[ -d "${SCRIPT_DIR}/.agents/skills" ]]; then
+    mkdir -p "${BUILD_DIR}/usr/share/${PKG_NAME}/skills"
+    cp -r "${SCRIPT_DIR}/.agents/skills/"* "${BUILD_DIR}/usr/share/${PKG_NAME}/skills/"
+fi
+
 # Install documentation
 cp "${SCRIPT_DIR}/README.md" "${BUILD_DIR}/usr/share/doc/${PKG_NAME}/README.md"
 cat > "${BUILD_DIR}/usr/share/doc/${PKG_NAME}/copyright" <<EOF
